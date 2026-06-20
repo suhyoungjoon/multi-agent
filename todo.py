@@ -8,6 +8,7 @@ class TodoItem:
     content: str
     done: bool = False
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    priority: int = 2
 
     REQUIRED_KEYS = ("id", "content", "done", "created_at")
 
@@ -21,6 +22,7 @@ class TodoItem:
             content=data["content"],
             done=data["done"],
             created_at=data["created_at"],
+            priority=data.get("priority", 2),
         )
 
     def to_dict(self) -> dict:
@@ -29,6 +31,7 @@ class TodoItem:
             "content": self.content,
             "done": self.done,
             "created_at": self.created_at,
+            "priority": self.priority,
         }
 
 
@@ -48,8 +51,8 @@ class TodoList:
             "items": [item.to_dict() for item in self.items],
         }
 
-    def add(self, content: str) -> TodoItem:
-        item = TodoItem(id=self.next_id, content=content)
+    def add(self, content: str, priority: int = 2) -> TodoItem:
+        item = TodoItem(id=self.next_id, content=content, priority=priority)
         self.items.append(item)
         self.next_id += 1
         return item

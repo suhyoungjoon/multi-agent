@@ -18,6 +18,36 @@ class TestTodoItem(unittest.TestCase):
         with self.assertRaises(ValueError):
             TodoItem.from_dict({"id": 1, "content": "우유 사기"})
 
+    def test_default_priority_is_2(self):
+        item = TodoItem(id=1, content="우유 사기")
+        self.assertEqual(item.priority, 2)
+
+    def test_to_dict_includes_priority(self):
+        item = TodoItem(id=1, content="우유 사기", priority=1)
+        data = item.to_dict()
+        self.assertEqual(data["priority"], 1)
+
+    def test_from_dict_without_priority_defaults_to_2(self):
+        legacy_data = {
+            "id": 1,
+            "content": "우유 사기",
+            "done": False,
+            "created_at": "2024-01-01T00:00:00+00:00",
+        }
+        item = TodoItem.from_dict(legacy_data)
+        self.assertEqual(item.priority, 2)
+
+    def test_from_dict_with_priority(self):
+        data = {
+            "id": 1,
+            "content": "우유 사기",
+            "done": False,
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "priority": 1,
+        }
+        item = TodoItem.from_dict(data)
+        self.assertEqual(item.priority, 1)
+
 
 class TestTodoList(unittest.TestCase):
     def setUp(self):
@@ -29,6 +59,14 @@ class TestTodoList(unittest.TestCase):
         self.assertEqual(first.id, 1)
         self.assertEqual(second.id, 2)
         self.assertEqual(self.todo_list.next_id, 3)
+
+    def test_add_default_priority_is_2(self):
+        item = self.todo_list.add("할 일")
+        self.assertEqual(item.priority, 2)
+
+    def test_add_with_custom_priority(self):
+        item = self.todo_list.add("할 일", priority=1)
+        self.assertEqual(item.priority, 1)
 
     def test_find_existing_item(self):
         item = self.todo_list.add("할 일")
