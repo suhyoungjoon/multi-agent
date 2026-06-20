@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+DEFAULT_PRIORITY = 2
+VALID_PRIORITIES = (1, 2, 3)
+
 
 @dataclass
 class TodoItem:
@@ -8,9 +11,13 @@ class TodoItem:
     content: str
     done: bool = False
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    priority: int = 2
+    priority: int = DEFAULT_PRIORITY
 
     REQUIRED_KEYS = ("id", "content", "done", "created_at")
+
+    def __post_init__(self):
+        if self.priority not in VALID_PRIORITIES:
+            raise ValueError(f"priority는 {VALID_PRIORITIES} 중 하나여야 합니다: {self.priority}")
 
     @classmethod
     def from_dict(cls, data: dict) -> "TodoItem":
@@ -22,7 +29,7 @@ class TodoItem:
             content=data["content"],
             done=data["done"],
             created_at=data["created_at"],
-            priority=data.get("priority", 2),
+            priority=data.get("priority", DEFAULT_PRIORITY),
         )
 
     def to_dict(self) -> dict:
@@ -51,7 +58,7 @@ class TodoList:
             "items": [item.to_dict() for item in self.items],
         }
 
-    def add(self, content: str, priority: int = 2) -> TodoItem:
+    def add(self, content: str, priority: int = DEFAULT_PRIORITY) -> TodoItem:
         item = TodoItem(id=self.next_id, content=content, priority=priority)
         self.items.append(item)
         self.next_id += 1
