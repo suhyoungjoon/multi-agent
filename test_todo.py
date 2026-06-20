@@ -1,6 +1,6 @@
 import unittest
 
-from todo import TodoItem, TodoList
+from todo import DEFAULT_PRIORITY, TodoItem, TodoList
 
 
 class TestTodoItem(unittest.TestCase):
@@ -20,7 +20,29 @@ class TestTodoItem(unittest.TestCase):
 
     def test_default_priority_is_2(self):
         item = TodoItem(id=1, content="우유 사기")
-        self.assertEqual(item.priority, 2)
+        self.assertEqual(item.priority, DEFAULT_PRIORITY)
+
+    def test_default_priority_uses_constant(self):
+        self.assertEqual(DEFAULT_PRIORITY, 2)
+
+    def test_invalid_priority_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            TodoItem(id=1, content="우유 사기", priority=0)
+
+    def test_priority_above_range_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            TodoItem(id=1, content="우유 사기", priority=4)
+
+    def test_from_dict_invalid_priority_raises_value_error(self):
+        data = {
+            "id": 1,
+            "content": "우유 사기",
+            "done": False,
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "priority": 9,
+        }
+        with self.assertRaises(ValueError):
+            TodoItem.from_dict(data)
 
     def test_to_dict_includes_priority(self):
         item = TodoItem(id=1, content="우유 사기", priority=1)
@@ -67,6 +89,10 @@ class TestTodoList(unittest.TestCase):
     def test_add_with_custom_priority(self):
         item = self.todo_list.add("할 일", priority=1)
         self.assertEqual(item.priority, 1)
+
+    def test_add_with_invalid_priority_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            self.todo_list.add("할 일", priority=5)
 
     def test_find_existing_item(self):
         item = self.todo_list.add("할 일")
