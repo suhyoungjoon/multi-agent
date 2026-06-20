@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오늘의 할일</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f5f7;
+    margin: 0;
+    padding: 40px 16px;
+    display: flex;
+    justify-content: center;
+  }
+  .app {
+    background: #fff;
+    width: 100%;
+    max-width: 480px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    padding: 24px;
+  }
+  h1 {
+    margin: 0 0 16px;
+    font-size: 22px;
+    text-align: center;
+    color: #222;
+  }
+  .input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  #todo-input {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    outline: none;
+  }
+  #todo-input:focus {
+    border-color: #4a90e2;
+  }
+  #add-btn {
+    padding: 10px 16px;
+    font-size: 15px;
+    border: none;
+    border-radius: 8px;
+    background: #4a90e2;
+    color: #fff;
+    cursor: pointer;
+  }
+  #add-btn:hover {
+    background: #3a7bc8;
+  }
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .filter-btn {
+    flex: 1;
+    padding: 6px 0;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+  }
+  .filter-btn.active {
+    background: #4a90e2;
+    color: #fff;
+    border-color: #4a90e2;
+  }
+  ul#todo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    min-height: 40px;
+  }
+  li.todo-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid #eee;
+  }
+  li.todo-item:last-child {
+    border-bottom: none;
+  }
+  li.todo-item .text {
+    flex: 1;
+    word-break: break-all;
+    font-size: 15px;
+  }
+  li.todo-item.done .text {
+    text-decoration: line-through;
+    color: #aaa;
+  }
+  li.todo-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  li.todo-item .delete-btn {
+    border: none;
+    background: none;
+    color: #c0392b;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  li.todo-item .delete-btn:hover {
+    color: #e74c3c;
+  }
+  .empty-msg {
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+    padding: 20px 0;
+  }
+  .summary {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <h1>오늘의 할일</h1>
+    <div class="input-row">
+      <input type="text" id="todo-input" placeholder="할일을 입력하세요" maxlength="200">
+      <button id="add-btn">추가</button>
+    </div>
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">전체</button>
+      <button class="filter-btn" data-filter="active">진행중</button>
+      <button class="filter-btn" data-filter="done">완료</button>
+    </div>
+    <ul id="todo-list"></ul>
+    <div class="summary" id="summary"></div>
+  </div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'todo-list';
+  const input = document.getElementById('todo-input');
+  const addBtn = document.getElementById('add-btn');
+  const list = document.getElementById('todo-list');
+  const summary = document.getElementById('summary');
+  const filterBtns = document.querySelectorAll('.filter-btn');
+
+  let todos = loadTodos();
+  let currentFilter = 'all';
+
+  function loadTodos() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveTodos() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+  }
+
+  function addTodo(text) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    todos.push({
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      text: trimmed,
+      done: false
+    });
+    saveTodos();
+    render();
+  }
+
+  function deleteTodo(id) {
+    todos = todos.filter(t => t.id !== id);
+    saveTodos();
+    render();
+  }
+
+  function toggleTodo(id) {
+    const todo = todos.find(t => t.id === id);
+    if (todo) {
+      todo.done = !todo.done;
+      saveTodos();
+      render();
+    }
+  }
+
+  function getFiltered() {
+    if (currentFilter === 'active') return todos.filter(t => !t.done);
+    if (currentFilter === 'done') return todos.filter(t => t.done);
+    return todos;
+  }
+
+  function render() {
+    const filtered = getFiltered();
+    list.innerHTML = '';
+
+    if (filtered.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'empty-msg';
+      empty.textContent = '할일이 없습니다.';
+      list.appendChild(empty);
+    } else {
+      filtered.forEach(todo => {
+        const li = document.createElement('li');
+        li.className = 'todo-item' + (todo.done ? ' done' : '');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = todo.done;
+        checkbox.addEventListener('change', () => toggleTodo(todo.id));
+
+        const span = document.createElement('span');
+        span.className = 'text';
+        span.textContent = todo.text;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '✕';
+        delBtn.addEventListener('click', () => deleteTodo(todo.id));
+
+        li.appendChild(checkbox);
+        li.appendChild(span);
+        li.appendChild(delBtn);
+        list.appendChild(li);
+      });
+    }
+
+    const total = todos.length;
+    const doneCount = todos.filter(t => t.done).length;
+    summary.textContent = total === 0
+      ? ''
+      : `총 ${total}개 중 ${doneCount}개 완료`;
+  }
+
+  addBtn.addEventListener('click', () => {
+    addTodo(input.value);
+    input.value = '';
+    input.focus();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      addTodo(input.value);
+      input.value = '';
+    }
+  });
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      render();
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
