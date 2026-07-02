@@ -24,6 +24,24 @@ class TestStore(unittest.TestCase):
         s = self._make_store()
         self.assertEqual(s.list_all(), [])
 
+    def test_list_all_on_missing_file_returns_empty(self):
+        from memory_store.store import Store
+        s = Store("/tmp/nonexistent_notes_xyzzy.json")
+        self.assertEqual(s.list_all(), [])
+
+    def test_save_on_missing_file_creates_note(self):
+        from memory_store.store import Store
+        path = "/tmp/nonexistent_notes_xyzzy2.json"
+        if os.path.exists(path):
+            os.unlink(path)
+        s = Store(path)
+        try:
+            note = s.save("파일 없을 때 저장")
+            self.assertEqual(note["content"], "파일 없을 때 저장")
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
     def test_save_returns_new_id(self):
         s = self._make_store()
         note = s.save("첫 번째 메모")

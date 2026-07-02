@@ -9,6 +9,8 @@ class Store:
         self._path = path
 
     def _read(self) -> dict:
+        if not os.path.exists(self._path):
+            return {"notes": []}
         with open(self._path, encoding="utf-8") as f:
             return json.load(f)
 
