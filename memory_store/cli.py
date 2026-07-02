@@ -13,6 +13,10 @@ def _parse_tags(raw: str) -> list[str]:
 def cmd_save(store: Store, args: argparse.Namespace) -> None:
     tags = _parse_tags(args.tags)
     note = store.save(args.content, tags=tags)
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(note, ensure_ascii=False))
+        return
     _color = out.use_color()
     tick = out.colorize("✓ 저장됨", 36, 1, use_color=_color)
     tag_str = " ".join(out.colorize(f"[{t}]", 33, use_color=_color) for t in note["tags"])
@@ -23,7 +27,7 @@ def cmd_save(store: Store, args: argparse.Namespace) -> None:
 
 
 def cmd_list(store: Store, args: argparse.Namespace) -> None:
-    tags = [t.lower() for t in getattr(args, "tag", [])]
+    tags = _parse_tags(getattr(args, "tag", "") or "")
     match_all = not getattr(args, "tag_or", False)
     notes = store.list_all(tags=tags, match_all=match_all)
 
@@ -44,7 +48,7 @@ def cmd_list(store: Store, args: argparse.Namespace) -> None:
 
 
 def cmd_search(store: Store, args: argparse.Namespace) -> None:
-    tags = [t.lower() for t in getattr(args, "tag", [])]
+    tags = _parse_tags(getattr(args, "tag", "") or "")
     match_all = not getattr(args, "tag_or", False)
     notes = store.search(args.query, tags=tags, match_all=match_all)
 
@@ -107,14 +111,15 @@ def main(argv=None):
     save_p = sub.add_parser("save", help="노트 저장")
     save_p.add_argument("content", help="저장할 내용")
     save_p.add_argument("--tags", default="", metavar="TAG1,TAG2", help="쉼표 구분 태그")
+    save_p.add_argument("--json", action="store_true", help="JSON 형식으로 출력 (스크립팅용)")
 
     list_p = sub.add_parser("list", help="전체 목록 / 태그 필터")
-    list_p.add_argument("--tag", nargs="+", default=[], metavar="TAG")
+    list_p.add_argument("--tag", default="", metavar="TAG1,TAG2", help="쉼표 구분 태그 필터")
     list_p.add_argument("--or", dest="tag_or", action="store_true", help="태그 OR 매칭 (기본: AND)")
 
     search_p = sub.add_parser("search", help="키워드 검색")
     search_p.add_argument("query", help="검색 키워드")
-    search_p.add_argument("--tag", nargs="+", default=[], metavar="TAG")
+    search_p.add_argument("--tag", default="", metavar="TAG1,TAG2", help="쉼표 구분 태그 필터")
     search_p.add_argument("--or", dest="tag_or", action="store_true")
 
     sub.add_parser("tags", help="태그 목록 + 사용 통계")

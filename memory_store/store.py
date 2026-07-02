@@ -68,18 +68,23 @@ class Store:
     def get(self, note_id: int) -> dict | None:
         for note in self._read()["notes"]:
             if note["id"] == note_id:
-                return note
+                return self._normalize_note(note)
         return None
 
     def search(self, keyword: str, tags: list[str] | None = None, match_all: bool = True) -> list:
-        notes = self._read()["notes"]
+        notes = [self._normalize_note(n) for n in self._read()["notes"]]
         filter_tags = [t.lower() for t in (tags or [])]
         kw = keyword.lower()
+
+        if not kw:
+            return [n for n in notes if self._tag_matches(n, filter_tags, match_all)]
 
         if len(notes) <= _LINEAR_THRESHOLD:
             candidates = [n for n in notes if kw in n["content"].lower()]
         else:
-            candidates = self._index_search(notes, kw)
+            # index pre-filters candidates; final content check unifies semantics with linear path
+            pre = self._index_search(notes, kw)
+            candidates = [n for n in pre if kw in n["content"].lower()]
 
         return [n for n in candidates if self._tag_matches(n, filter_tags, match_all)]
 
@@ -87,7 +92,7 @@ class Store:
     def _index_search(notes: list, kw: str) -> list:
         tokens = re.findall(r"\w+", kw)
         if not tokens:
-            return []
+            return notes  # no word tokens → fall through to content check
         index: dict[str, set[int]] = {}
         for note in notes:
             words = re.findall(r"\w+", note["content"].lower())
@@ -97,10 +102,9 @@ class Store:
         for token in tokens:
             hits = {nid for word, ids in index.items() if token in word for nid in ids}
             matched_ids = hits if matched_ids is None else matched_ids & hits
-        if matched_ids is None:
+        if not matched_ids:
             return []
-        id_set = matched_ids
-        return [n for n in notes if n["id"] in id_set]
+        return [n for n in notes if n["id"] in matched_ids]
 
     def list_tags(self) -> list[dict]:
         counts: dict[str, int] = {}

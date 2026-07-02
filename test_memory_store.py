@@ -242,6 +242,51 @@ class TestStoreTags(unittest.TestCase):
         result = s.search("xyzzy")
         self.assertEqual(len(result), 1)
 
+    # Fix 1: empty query
+    def test_search_empty_keyword_returns_all(self):
+        s = self._make_store()
+        s.save("A")
+        s.save("B")
+        self.assertEqual(len(s.search("")), 2)
+
+    def test_search_empty_keyword_respects_tag_filter(self):
+        s = self._make_store()
+        s.save("A", tags=["work"])
+        s.save("B", tags=["idea"])
+        result = s.search("", tags=["work"])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["content"], "A")
+
+    # Fix 1: special char consistency (linear vs index path same semantics)
+    def test_search_special_chars_linear_path(self):
+        s = self._make_store()
+        s.save("C++ is fast")
+        s.save("Python is great")
+        result = s.search("c++")
+        self.assertEqual(len(result), 1)
+        self.assertIn("C++", result[0]["content"])
+
+    def test_search_special_chars_index_path_same_result(self):
+        s = self._make_store()
+        for i in range(501):
+            s.save(f"노트 {i}")
+        s.save("C++ 학습 중")
+        linear_like = [n for n in s._read()["notes"] if "c++" in n["content"].lower()]
+        index_result = s.search("c++")
+        self.assertEqual(
+            {n["id"] for n in index_result},
+            {n["id"] for n in linear_like},
+        )
+
+    # Fix 2: get() normalize
+    def test_get_legacy_note_has_empty_tags(self):
+        legacy = {"notes": [{"id": 1, "content": "레거시 노트"}]}
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(legacy, f)
+        s = self._make_store()
+        note = s.get(1)
+        self.assertEqual(note["tags"], [])
+
 
 class TestOutput(unittest.TestCase):
     def test_colorize_applies_ansi_when_enabled(self):
@@ -302,13 +347,28 @@ class TestCLIC(unittest.TestCase):
     def test_cli_save_with_tags(self):
         r = self._run("save", "태그 테스트", "--tags", "work,idea")
         self.assertEqual(r.returncode, 0)
-        data = json.loads(open(self.path, encoding="utf-8").read())
+        with open(self.path, encoding="utf-8") as f:
+            data = json.load(f)
         self.assertEqual(data["notes"][0]["tags"], ["work", "idea"])
 
+    # Fix 3: --json flag for scriptable output
+    def test_cli_save_json_flag_outputs_json(self):
+        r = self._run("save", "JSON 출력 테스트", "--json")
+        self.assertEqual(r.returncode, 0)
+        parsed = json.loads(r.stdout)
+        self.assertEqual(parsed["content"], "JSON 출력 테스트")
+        self.assertIn("id", parsed)
+
+    def test_cli_save_default_is_human_readable(self):
+        r = self._run("save", "사람 읽기 테스트")
+        self.assertEqual(r.returncode, 0)
+        self.assertRaises(json.JSONDecodeError, json.loads, r.stdout)
+
+    # Fix 4: delimiter unification — --tag uses comma-separated
     def test_cli_list_tag_and_filter(self):
         self._run("save", "A 노트", "--tags", "work,idea")
         self._run("save", "B 노트", "--tags", "work")
-        r = self._run("list", "--tag", "work", "idea")
+        r = self._run("list", "--tag", "work,idea")
         self.assertIn("A 노트", r.stdout)
         self.assertNotIn("B 노트", r.stdout)
 
@@ -316,7 +376,7 @@ class TestCLIC(unittest.TestCase):
         self._run("save", "A 노트", "--tags", "work")
         self._run("save", "B 노트", "--tags", "idea")
         self._run("save", "C 노트", "--tags", "other")
-        r = self._run("list", "--tag", "work", "idea", "--or")
+        r = self._run("list", "--tag", "work,idea", "--or")
         self.assertIn("A 노트", r.stdout)
         self.assertIn("B 노트", r.stdout)
         self.assertNotIn("C 노트", r.stdout)
@@ -334,7 +394,7 @@ class TestCLIC(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertIn("없", r.stdout)
 
-    def test_cli_search_with_tag_filter(self):
+    def test_cli_search_with_tag_filter_comma(self):
         self._run("save", "파이썬 work", "--tags", "work")
         self._run("save", "파이썬 idea", "--tags", "idea")
         r = self._run("search", "파이썬", "--tag", "work")
