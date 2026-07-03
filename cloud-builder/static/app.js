@@ -176,7 +176,7 @@ function renderResult(data) {
     });
     state.components.forEach(c => params.append("components", c));
     window.location.href = `/download/terraform?${params}`;
-  };
+  });
 }
 
 renderStep();
