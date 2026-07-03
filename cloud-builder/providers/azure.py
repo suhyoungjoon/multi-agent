@@ -40,8 +40,33 @@ def _build_diagram(req: WizardRequest) -> str:
     return "\n".join(lines)
 
 
+_APP_SERVICE_SKUS = {
+    "low":    ("Basic",    "B1"),
+    "medium": ("Standard", "S1"),
+    "high":   ("PremiumV2", "P1v2"),
+}
+
+
+def _tf_app_service(traffic: str) -> str:
+    tier, size = _APP_SERVICE_SKUS.get(traffic, ("Standard", "S1"))
+    return f'''\
+resource "azurerm_app_service_plan" "main" {{
+  name                = "${{var.project_name}}-plan"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku {{ tier = "{tier}" size = "{size}" }}
+}}
+
+resource "azurerm_app_service" "main" {{
+  name                = "${{var.project_name}}-app"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  app_service_plan_id = azurerm_app_service_plan.main.id
+}}'''
+
+
 def _build_terraform(req: WizardRequest) -> dict[str, str]:
-    main_blocks = [_TF_BASE, _TF_APP_SERVICE]
+    main_blocks = [_TF_BASE, _tf_app_service(req.scale.traffic)]
     if "db" in req.components:
         main_blocks.append(_TF_SQL)
     if "cache" in req.components:
@@ -79,20 +104,6 @@ resource "azurerm_subnet" "main" {
   address_prefixes     = [var.subnet_cidr]
 }'''
 
-_TF_APP_SERVICE = '''\
-resource "azurerm_app_service_plan" "main" {
-  name                = "${var.project_name}-plan"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  sku { tier = "Standard" size = "S1" }
-}
-
-resource "azurerm_app_service" "main" {
-  name                = "${var.project_name}-app"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  app_service_plan_id = azurerm_app_service_plan.main.id
-}'''
 
 _TF_CDN = '''\
 resource "azurerm_cdn_profile" "main" {
