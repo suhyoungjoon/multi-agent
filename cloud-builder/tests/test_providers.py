@@ -199,3 +199,83 @@ def test_azure_db_uses_mssql_server():
     tf = resp.terraform["main.tf"]
     assert "azurerm_mssql_server" in tf
     assert "azurerm_sql_server" not in tf
+
+
+# ── traffic → AWS 인스턴스 크기 분기 ─────────────────────────────────────────
+
+def _make_req_traffic(traffic, **kwargs):
+    return _make_req(
+        scale=ScaleConfig(traffic=traffic, ha=False, multi_region=False),
+        **kwargs,
+    )
+
+
+def test_aws_low_traffic_ec2_type_small():
+    tf = generate_aws(_make_req_traffic("low")).terraform["variables.tf"]
+    assert "t3.small" in tf
+
+
+def test_aws_medium_traffic_ec2_type_large():
+    tf = generate_aws(_make_req_traffic("medium")).terraform["variables.tf"]
+    assert "t3.large" in tf
+
+
+def test_aws_high_traffic_ec2_type_xlarge():
+    tf = generate_aws(_make_req_traffic("high")).terraform["variables.tf"]
+    assert "t3.xlarge" in tf
+
+
+def test_aws_traffic_ec2_sizes_are_distinct():
+    low  = generate_aws(_make_req_traffic("low")).terraform["variables.tf"]
+    med  = generate_aws(_make_req_traffic("medium")).terraform["variables.tf"]
+    high = generate_aws(_make_req_traffic("high")).terraform["variables.tf"]
+    # 세 traffic 레벨이 모두 다른 default 값을 가져야 함
+    assert low != med
+    assert med != high
+
+
+def test_aws_low_traffic_db_class_micro():
+    tf = generate_aws(_make_req_traffic("low", components=["db"])).terraform["variables.tf"]
+    assert "db.t3.micro" in tf
+
+
+def test_aws_medium_traffic_db_class_medium():
+    tf = generate_aws(_make_req_traffic("medium", components=["db"])).terraform["variables.tf"]
+    assert "db.t3.medium" in tf
+
+
+def test_aws_high_traffic_db_class_large():
+    tf = generate_aws(_make_req_traffic("high", components=["db"])).terraform["variables.tf"]
+    assert "db.t3.large" in tf
+
+
+# ── traffic → Azure App Service SKU 분기 ─────────────────────────────────────
+
+def _make_azure_req_traffic(traffic, **kwargs):
+    return _make_azure_req(
+        scale=ScaleConfig(traffic=traffic, ha=False, multi_region=False),
+        **kwargs,
+    )
+
+
+def test_azure_low_traffic_app_service_b1():
+    tf = generate_azure(_make_azure_req_traffic("low")).terraform["main.tf"]
+    assert "B1" in tf
+
+
+def test_azure_medium_traffic_app_service_s1():
+    tf = generate_azure(_make_azure_req_traffic("medium")).terraform["main.tf"]
+    assert "S1" in tf
+
+
+def test_azure_high_traffic_app_service_p1v2():
+    tf = generate_azure(_make_azure_req_traffic("high")).terraform["main.tf"]
+    assert "P1v2" in tf
+
+
+def test_azure_traffic_sku_sizes_are_distinct():
+    low  = generate_azure(_make_azure_req_traffic("low")).terraform["main.tf"]
+    med  = generate_azure(_make_azure_req_traffic("medium")).terraform["main.tf"]
+    high = generate_azure(_make_azure_req_traffic("high")).terraform["main.tf"]
+    assert low != med
+    assert med != high

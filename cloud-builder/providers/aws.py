@@ -40,6 +40,10 @@ def _build_diagram(req: WizardRequest) -> str:
     return "\n".join(lines)
 
 
+_EC2_TYPES = {"low": "t3.small", "medium": "t3.large", "high": "t3.xlarge"}
+_DB_CLASSES = {"low": "db.t3.micro", "medium": "db.t3.medium", "high": "db.t3.large"}
+
+
 def _build_terraform(req: WizardRequest) -> dict[str, str]:
     main_blocks = [_TF_VPC, _TF_ALB, _TF_EC2]
     if "db" in req.components:
@@ -56,7 +60,7 @@ def _build_terraform(req: WizardRequest) -> dict[str, str]:
         main_blocks.append(_TF_MULTI_REGION_COMMENT)
     return {
         "main.tf": "\n\n".join(main_blocks),
-        "variables.tf": _TF_VARIABLES,
+        "variables.tf": _tf_variables(req.scale.traffic),
         "outputs.tf": _TF_OUTPUTS,
     }
 
@@ -170,21 +174,24 @@ resource "aws_s3_bucket" "main" {
   bucket = var.s3_bucket_name
 }'''
 
-_TF_VARIABLES = '''\
-variable "project_name"                { type = string }
-variable "aws_region"                  { type = string  default = "ap-northeast-2" }
-variable "vpc_cidr"                    { type = string  default = "10.0.0.0/16" }
-variable "public_subnet_cidr"          { type = string  default = "10.0.1.0/24" }
-variable "ec2_ami"                     { type = string }
-variable "ec2_instance_type"           { type = string  default = "t3.micro" }
-variable "db_engine"                   { type = string  default = "postgres" }
-variable "db_instance_class"           { type = string  default = "db.t3.micro" }
-variable "db_username"                 { type = string }
-variable "db_password"                 { type = string  sensitive = true }
-variable "db_final_snapshot_identifier" { type = string  default = "final-snapshot" }
-variable "cache_node_type"             { type = string  default = "cache.t3.micro" }
-variable "origin_domain"               { type = string }
-variable "s3_bucket_name"              { type = string  default = "" }'''
+def _tf_variables(traffic: str) -> str:
+    ec2_type = _EC2_TYPES.get(traffic, "t3.large")
+    db_class = _DB_CLASSES.get(traffic, "db.t3.medium")
+    return f'''\
+variable "project_name"                {{ type = string }}
+variable "aws_region"                  {{ type = string  default = "ap-northeast-2" }}
+variable "vpc_cidr"                    {{ type = string  default = "10.0.0.0/16" }}
+variable "public_subnet_cidr"          {{ type = string  default = "10.0.1.0/24" }}
+variable "ec2_ami"                     {{ type = string }}
+variable "ec2_instance_type"           {{ type = string  default = "{ec2_type}" }}
+variable "db_engine"                   {{ type = string  default = "postgres" }}
+variable "db_instance_class"           {{ type = string  default = "{db_class}" }}
+variable "db_username"                 {{ type = string }}
+variable "db_password"                 {{ type = string  sensitive = true }}
+variable "db_final_snapshot_identifier" {{ type = string  default = "final-snapshot" }}
+variable "cache_node_type"             {{ type = string  default = "cache.t3.micro" }}
+variable "origin_domain"               {{ type = string }}
+variable "s3_bucket_name"              {{ type = string  default = "" }}'''
 
 _TF_OUTPUTS = '''\
 output "vpc_id"    { value = aws_vpc.main.id }
