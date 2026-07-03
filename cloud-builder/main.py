@@ -1,4 +1,5 @@
 import io
+import os
 import zipfile
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
@@ -45,4 +46,5 @@ def download_terraform(
     )
 
 
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="static")
