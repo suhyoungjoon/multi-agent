@@ -166,8 +166,13 @@ function renderResult(data) {
     document.querySelectorAll(".tab-content").forEach(x => x.classList.remove("active"));
     t.classList.add("active");
     document.getElementById("tab-" + t.dataset.tab).classList.add("active");
-    if (t.dataset.tab === "diagram") {
-      mermaid.run({ nodes: mc.querySelectorAll(".mermaid") });
+    if (t.dataset.tab === "diagram" && !mc.querySelector("svg")) {
+      const source = mc.querySelector(".mermaid").textContent.trim();
+      mermaid.render("mermaid-graph", source).then(({ svg }) => {
+        mc.innerHTML = svg;
+      }).catch(err => {
+        mc.innerHTML = "<p style=\"color:#c00;padding:16px\">다이어그램 렌더링 실패: " + err.message + "</p>";
+      });
     }
   }));
 
