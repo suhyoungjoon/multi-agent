@@ -119,14 +119,26 @@ function renderStep() {
 async function generate() {
   document.getElementById("wizard-section").classList.add("hidden");
   document.getElementById("loading").classList.remove("hidden");
-  const resp = await fetch("/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(state),
-  });
-  const data = await resp.json();
-  document.getElementById("loading").classList.add("hidden");
-  renderResult(data);
+  document.getElementById("error-message").classList.add("hidden");
+  try {
+    const resp = await fetch("/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state),
+    });
+    if (!resp.ok) {
+      throw new Error(`서버 오류: ${resp.status}`);
+    }
+    const data = await resp.json();
+    document.getElementById("loading").classList.add("hidden");
+    renderResult(data);
+  } catch (err) {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("wizard-section").classList.remove("hidden");
+    const errEl = document.getElementById("error-message");
+    errEl.textContent = err.message || "아키텍처 생성 중 오류가 발생했습니다.";
+    errEl.classList.remove("hidden");
+  }
 }
 
 function renderResult(data) {
@@ -140,11 +152,15 @@ function renderResult(data) {
   mc.innerHTML = `<div class="mermaid">${data.diagram}</div>`;
   mermaid.run({ nodes: mc.querySelectorAll(".mermaid") });
 
-  document.getElementById("tf-files").innerHTML = Object.entries(data.terraform).map(([name, code]) =>
+  const terraformEntries = Object.entries(data.terraform);
+  document.getElementById("tf-files").innerHTML = terraformEntries.map(([name, code], i) =>
     `<h3 style="margin:16px 0 8px">${name}</h3>
-     <button class="copy-btn" onclick="navigator.clipboard.writeText(${JSON.stringify(code)})">복사</button>
+     <button class="copy-btn" data-index="${i}">복사</button>
      <pre><code>${code.replace(/</g, "&lt;")}</code></pre>`
   ).join("");
+  document.querySelectorAll("#tf-files .copy-btn").forEach((btn, i) => {
+    btn.addEventListener("click", () => navigator.clipboard.writeText(terraformEntries[i][1]));
+  });
 
   document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
@@ -153,7 +169,7 @@ function renderResult(data) {
     document.getElementById("tab-" + t.dataset.tab).classList.add("active");
   }));
 
-  document.getElementById("dl-btn").onclick = () => {
+  document.getElementById("dl-btn").addEventListener("click", () => {
     const params = new URLSearchParams({
       provider: state.provider, app_type: state.app_type,
       traffic: state.scale.traffic, ha: state.scale.ha, multi_region: state.scale.multi_region,
