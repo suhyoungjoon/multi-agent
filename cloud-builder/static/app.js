@@ -150,7 +150,6 @@ function renderResult(data) {
 
   const mc = document.getElementById("mermaid-container");
   mc.innerHTML = `<div class="mermaid">${data.diagram}</div>`;
-  mermaid.run({ nodes: mc.querySelectorAll(".mermaid") });
 
   const terraformEntries = Object.entries(data.terraform);
   document.getElementById("tf-files").innerHTML = terraformEntries.map(([name, code], i) =>
@@ -167,6 +166,9 @@ function renderResult(data) {
     document.querySelectorAll(".tab-content").forEach(x => x.classList.remove("active"));
     t.classList.add("active");
     document.getElementById("tab-" + t.dataset.tab).classList.add("active");
+    if (t.dataset.tab === "diagram") {
+      mermaid.run({ nodes: mc.querySelectorAll(".mermaid") });
+    }
   }));
 
   document.getElementById("dl-btn").addEventListener("click", () => {
