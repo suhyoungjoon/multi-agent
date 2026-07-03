@@ -41,11 +41,13 @@ def _build_diagram(req: WizardRequest) -> str:
 
 
 def _build_terraform(req: WizardRequest) -> dict[str, str]:
-    main_blocks = [_TF_BASE]
+    main_blocks = [_TF_BASE, _TF_APP_SERVICE]
     if "db" in req.components:
         main_blocks.append(_TF_SQL)
     if "cache" in req.components:
         main_blocks.append(_TF_REDIS)
+    if "cdn" in req.components:
+        main_blocks.append(_TF_CDN)
     if "storage" in req.components:
         main_blocks.append(_TF_STORAGE)
     if "queue" in req.components:
@@ -77,8 +79,42 @@ resource "azurerm_subnet" "main" {
   address_prefixes     = [var.subnet_cidr]
 }'''
 
+_TF_APP_SERVICE = '''\
+resource "azurerm_app_service_plan" "main" {
+  name                = "${var.project_name}-plan"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku { tier = "Standard" size = "S1" }
+}
+
+resource "azurerm_app_service" "main" {
+  name                = "${var.project_name}-app"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  app_service_plan_id = azurerm_app_service_plan.main.id
+}'''
+
+_TF_CDN = '''\
+resource "azurerm_cdn_profile" "main" {
+  name                = "${var.project_name}-cdn"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku                 = "Standard_Microsoft"
+}
+
+resource "azurerm_cdn_endpoint" "main" {
+  name                = "${var.project_name}-endpoint"
+  profile_name        = azurerm_cdn_profile.main.name
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  origin {
+    name      = "main-origin"
+    host_name = var.cdn_origin_host_name
+  }
+}'''
+
 _TF_SQL = '''\
-resource "azurerm_sql_server" "main" {
+resource "azurerm_mssql_server" "main" {
   name                         = "${var.project_name}-sql"
   resource_group_name          = azurerm_resource_group.main.name
   location                     = azurerm_resource_group.main.location
@@ -87,11 +123,9 @@ resource "azurerm_sql_server" "main" {
   administrator_login_password = var.sql_admin_password
 }
 
-resource "azurerm_sql_database" "main" {
-  name                = var.db_name
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  server_name         = azurerm_sql_server.main.name
+resource "azurerm_mssql_database" "main" {
+  name      = var.db_name
+  server_id = azurerm_mssql_server.main.id
 }'''
 
 _TF_REDIS = '''\
@@ -130,7 +164,8 @@ variable "subnet_cidr"          { type = string  default = "10.0.1.0/24" }
 variable "sql_admin_login"      { type = string }
 variable "sql_admin_password"   { type = string  sensitive = true }
 variable "db_name"              { type = string  default = "appdb" }
-variable "storage_account_name" { type = string  default = "" }'''
+variable "storage_account_name" { type = string  default = "" }
+variable "cdn_origin_host_name" { type = string  default = "" }'''
 
 _TF_OUTPUTS = '''\
 output "resource_group_id" { value = azurerm_resource_group.main.id }
