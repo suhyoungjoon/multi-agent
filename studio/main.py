@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from studio import compact_action, tmux_control, watchdog_loop, wiki_bridge
@@ -80,3 +83,11 @@ class SaveNoteRequest(BaseModel):
 def post_wiki_save(req: SaveNoteRequest) -> dict:
     path = wiki_bridge.save_note(req.domain, req.title, req.content, req.tags)
     return {"path": str(path)}
+
+
+# Static file mount MUST be registered last. Starlette matches routes in
+# registration order and Mount("/") matches every path — mounting it before
+# the /api/... routes above would swallow every request (including
+# /api/health) before those routes ever got a chance to match.
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

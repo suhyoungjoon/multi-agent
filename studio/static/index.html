@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Advanced Agent Studio</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; margin: 2rem; background: #0a0a0a; color: #eee; }
+    .pane-card { border: 1px solid #333; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+    .pane-card.stuck { border-color: #d9534f; }
+    button { margin-right: 0.5rem; cursor: pointer; }
+    #token-input { width: 20rem; }
+  </style>
+</head>
+<body>
+  <h1>Advanced Agent Studio</h1>
+  <p>
+    Token: <input id="token-input" type="password" placeholder="X-Studio-Token">
+    <button id="save-token">저장</button>
+    <label><input type="checkbox" id="stuck-toggle"> 정체 감지 켜짐</label>
+  </p>
+  <div id="panes"></div>
+
+  <h2>메모리 (wiki)</h2>
+  <pre id="hot-cache" style="white-space: pre-wrap; border: 1px solid #333; padding: 1rem;"></pre>
+
+  <script src="/app.js"></script>
+</body>
+</html>
