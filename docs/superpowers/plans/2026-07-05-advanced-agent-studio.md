@@ -1578,16 +1578,20 @@ git commit -m "feat(studio): wire status/watchdog/pane-action/wiki API routes"
 
 - [ ] **Step 1: Mount static files in main.py**
 
-Add near the top of `studio/main.py` (after the `app = FastAPI(...)` line):
+Add the imports to the top of `studio/main.py`, alongside the existing imports:
 ```python
 from pathlib import Path
 
 from fastapi.staticfiles import StaticFiles
+```
 
+Then append this to the **very end** of `studio/main.py`, after every `@app.get`/`@app.post` route defined so far:
+```python
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 ```
-Place this mount **after** all `/api/...` route definitions in the file (FastAPI matches routes in registration order, and a `/` mount would otherwise shadow nothing here since API routes are under `/api`, but keep it last for clarity).
+
+**This order is required, not stylistic.** Starlette matches routes in registration order and a `Mount("/")` matches every path. If `app.mount("/", ...)` is registered *before* the `/api/...` routes, it will swallow every request — including `/api/health` — before the API routes ever get a chance to match, breaking the entire API. Registering the mount last means Starlette tries each specific `/api/...` route first and only falls through to the static-file mount for everything else.
 
 - [ ] **Step 2: Write the dashboard HTML**
 
