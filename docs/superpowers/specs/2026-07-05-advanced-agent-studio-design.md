@@ -28,6 +28,7 @@ multi-agent/
     ├── tmux_control.py     # capture-pane/send-keys 래퍼 (watchdog.sh 원시 동작 이식)
     ├── watchdog_loop.py    # 배경 asyncio 태스크: stuck 감지, context 폴링, compact 트리거
     ├── team_config.py      # 팀 구성 로더 (team.yaml 없으면 setup-team-v2.sh 배열로 폴백)
+    ├── roles.yaml           # 패널별 역할 재주입 텍스트 (Track A의 .claude-team-roles.sh가 실제로는 존재하지 않아 Studio 자체 소스로 새로 정의)
     ├── wiki_bridge.py       # multi-agent-wiki 볼트 read/write, 템플릿 기반 저장
     ├── auth.py             # LAN 접근용 토큰 인증 미들웨어
     ├── static/, templates/ # 서버렌더링 + 폴링(2~3초) 기반 프론트, 바닐라 JS
@@ -48,6 +49,7 @@ multi-agent/
 | `tmux_control.py` | `capture_pane(idx)`, `send_keys(idx, text)`, `send_enter(idx)` — watchdog.sh의 "텍스트 전송 → sleep 1.5 → Enter" 3단계 규칙을 함수로 이식 |
 | `watchdog_loop.py` | 기존 watchdog.sh 감지 로직(정체 감지 `STUCK_THRESHOLD`, 컨텍스트 임계치 `CONTEXT_THRESHOLD`/`COMPACT_THRESHOLD`, `/clear` 추정 감지)을 asyncio 태스크로 재구현. 임계치 초과 시 기존과 동일하게 자동 조치를 실행하고, 결과를 in-memory 상태로 노출. **참고**: 원본 watchdog.sh는 `STUCK_THRESHOLD`(진짜 멈춤) 케이스에 자동 조치 없이 알림만 보냄 — 이 갭을 메우는 게 아래 "깨우기" 액션. **정체 감지 서브로직만 `stuck_check_enabled` 플래그로 감싸 토글 가능하게 만듦** — 꺼져 있으면 STUCK_THRESHOLD 알림 로직을 건너뛰지만, `/clear` 감지·컨텍스트 폴링·자동 compact는 플래그와 무관하게 계속 실행 |
 | `team_config.py` | v1은 team.yaml 스키마가 아직 없으므로, `setup-team-v2.sh`의 `MEMBER_NAMES`/`MEMBER_MODELS` 배열을 파싱하는 폴백 파서로 시작. team.yaml이 나오면 이 모듈만 교체 |
+| `roles.yaml` | **계획 단계에서 발견된 사항**: 원본 `watchdog.sh`는 역할 재주입 텍스트를 `.claude-team-roles.sh`에서 읽어오게 되어 있으나, 이 파일은 실제로 존재하지 않고 `setup-team-v2.sh`도 만들지 않음(Track A의 기존 잠재 버그 — 즉 원본 재주입 기능은 항상 실패해왔음). Studio는 이 의존성을 물려받지 않고, 패널별 역할 재주입 텍스트를 담은 자체 `roles.yaml`을 새로 정의해서 사용 |
 | `wiki_bridge.py` | wiki 검색(`GET /api/wiki/search`), hot cache 조회(`GET /api/wiki/hot`), **템플릿 기반 저장**(`POST /api/wiki/save`) — 사용자가 입력한 텍스트를 정해진 frontmatter 템플릿에 넣어 파일로 씀. LLM 합성(`claude -p` 헤드리스 호출)은 v1 범위 밖 |
 | `auth.py` | LAN 노출에 대비한 최소 인증. 토큰은 `.env`에 저장(기존 프로젝트 관례와 일치), 요청 헤더로 토큰 비교 |
 
