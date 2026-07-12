@@ -21,20 +21,37 @@ async function apiPost(path, body) {
   return res.json();
 }
 
+function makeActionButton(action, idx, label) {
+  const button = document.createElement("button");
+  button.dataset.action = action;
+  button.dataset.idx = idx;
+  button.textContent = label;
+  return button;
+}
+
 function renderPanes(panes) {
   const container = document.getElementById("panes");
   container.innerHTML = "";
   for (const [idx, pane] of Object.entries(panes)) {
     const card = document.createElement("div");
     card.className = "pane-card" + (pane.stuck ? " stuck" : "");
-    card.innerHTML = `
-      <strong>${pane.name}</strong> (pane ${idx}) — ${pane.stuck ? "STUCK" : "정상"}<br>
-      <code>${(pane.last_line || "").slice(0, 80)}</code><br>
-      <button data-action="check" data-idx="${idx}">지금 확인</button>
-      <button data-action="wake" data-idx="${idx}">깨우기</button>
-      <button data-action="restart" data-idx="${idx}">역할 재주입</button>
-      <button data-action="compact" data-idx="${idx}">compact</button>
-    `;
+
+    const header = document.createElement("strong");
+    header.textContent = pane.name;
+    card.appendChild(header);
+    card.appendChild(document.createTextNode(` (pane ${idx}) — ${pane.stuck ? "STUCK" : "정상"}`));
+    card.appendChild(document.createElement("br"));
+
+    const code = document.createElement("code");
+    code.textContent = (pane.last_line || "").slice(0, 80);
+    card.appendChild(code);
+    card.appendChild(document.createElement("br"));
+
+    card.appendChild(makeActionButton("check", idx, "지금 확인"));
+    card.appendChild(makeActionButton("wake", idx, "깨우기"));
+    card.appendChild(makeActionButton("restart", idx, "역할 재주입"));
+    card.appendChild(makeActionButton("compact", idx, "compact"));
+
     container.appendChild(card);
   }
 }

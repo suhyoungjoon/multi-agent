@@ -29,6 +29,7 @@ jobs:
           pip install pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f cloud-builder/requirements.txt ]; then pip install -r cloud-builder/requirements.txt; fi
+          if [ -f studio/requirements.txt ]; then pip install -r studio/requirements.txt; fi
 
       - name: Run tests
         run: pytest --tb=short -v
