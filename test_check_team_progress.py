@@ -85,3 +85,13 @@ def test_exits_zero_when_not_a_git_repo(tmp_path):
 
     assert result.returncode == 0
     assert result.stdout == ""
+
+
+def test_emits_notice_when_untracked_file_created_under_docs(tmp_path):
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "newfile.md").write_text("brand new file\n", encoding="utf-8")
+
+    result = _run_script(repo)
+
+    assert result.returncode == 0
+    assert "TEAM_PROGRESS_CHANGED" in result.stdout
