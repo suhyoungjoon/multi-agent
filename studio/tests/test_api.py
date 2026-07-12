@@ -1,10 +1,12 @@
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 os.environ["STUDIO_TOKEN"] = "test-token"
 
+from studio import watchdog_loop  # noqa: E402
 from studio.main import app  # noqa: E402
 
 client = TestClient(app)
@@ -18,9 +20,20 @@ def test_status_requires_token():
 
 @patch("studio.main.watchdog_loop.tick")
 def test_status_returns_pane_snapshot(mock_tick):
+    watchdog_loop.STATE.panes[0] = {
+        "name": "쭌", "stuck": False, "last_line": "❯ Try \"help\"", "context_pct": None, "context_alert": False,
+    }
+
     response = client.get("/api/status", headers=HEADERS)
+
     assert response.status_code == 200
     mock_tick.assert_called_once()
+    body = response.json()
+    assert "panes" in body
+    assert body["panes"]["0"] == {
+        "name": "쭌", "stuck": False, "last_line": "❯ Try \"help\"", "context_pct": None, "context_alert": False,
+    }
+    watchdog_loop.STATE.panes.clear()  # avoid leaking state into other tests
 
 
 def test_watchdog_settings_get_default_enabled():
@@ -79,3 +92,50 @@ def test_pane_compact_calls_trigger_compact(mock_trigger):
     assert response.status_code == 200
     assert response.json() == {"ok": True, "before_pct": None, "after_pct": 5.0}
     mock_trigger.assert_called_once_with(4)
+
+
+def test_wiki_hot_requires_token():
+    response = client.get("/api/wiki/hot")
+    assert response.status_code == 401
+
+
+@patch("studio.main.wiki_bridge.read_hot_cache", return_value="# hot cache content")
+def test_wiki_hot_returns_content_with_valid_token(mock_read):
+    response = client.get("/api/wiki/hot", headers=HEADERS)
+    assert response.status_code == 200
+    assert response.json() == {"content": "# hot cache content"}
+
+
+def test_wiki_search_requires_token():
+    response = client.get("/api/wiki/search?q=test")
+    assert response.status_code == 401
+
+
+@patch("studio.main.wiki_bridge.search_wiki")
+def test_wiki_search_calls_bridge_with_query(mock_search):
+    mock_search.return_value = [{"file": "wiki/research/test.md", "snippet": "..."}]
+    response = client.get("/api/wiki/search?q=test", headers=HEADERS)
+    assert response.status_code == 200
+    assert response.json() == {"results": [{"file": "wiki/research/test.md", "snippet": "..."}]}
+    mock_search.assert_called_once_with("test")
+
+
+def test_wiki_save_requires_token():
+    response = client.post(
+        "/api/wiki/save",
+        json={"domain": "studio-notes", "title": "t", "content": "c", "tags": []},
+    )
+    assert response.status_code == 401
+
+
+@patch("studio.main.wiki_bridge.save_note")
+def test_wiki_save_calls_bridge_and_returns_path(mock_save):
+    mock_save.return_value = Path("/vault/wiki/studio-notes/t.md")
+    response = client.post(
+        "/api/wiki/save",
+        headers=HEADERS,
+        json={"domain": "studio-notes", "title": "t", "content": "c", "tags": ["studio"]},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"path": "/vault/wiki/studio-notes/t.md"}
+    mock_save.assert_called_once_with("studio-notes", "t", "c", ["studio"])

@@ -43,3 +43,26 @@ def test_load_team_falls_back_when_arrays_absent(tmp_path: Path):
 
     assert len(team) == 6
     assert team[0]["name"] == "쭌"
+
+
+def test_load_team_uses_fallback_model_when_more_names_than_models(tmp_path: Path):
+    script = tmp_path / "setup-team-extra.sh"
+    script.write_text(
+        '''#!/bin/bash
+MEMBER_NAMES=("쭌" "민준 아키텍트" "지훈 리서쳐" "추가 멤버")
+MEMBER_MODELS=(
+    "claude-sonnet-4-6"
+    "claude-opus-4-8"
+)
+''',
+        encoding="utf-8",
+    )
+
+    team = team_config.load_team(script)
+
+    assert team == [
+        {"pane": 0, "name": "쭌", "model": "claude-sonnet-4-6"},
+        {"pane": 1, "name": "민준 아키텍트", "model": "claude-opus-4-8"},
+        {"pane": 2, "name": "지훈 리서쳐", "model": team_config._FALLBACK_MODEL},
+        {"pane": 3, "name": "추가 멤버", "model": team_config._FALLBACK_MODEL},
+    ]

@@ -81,3 +81,32 @@ def test_check_pane_now_works_even_when_toggle_disabled(mock_capture, mock_team)
 
     assert result["stuck"] is True
     assert state.panes[0]["stuck"] is True
+
+
+@patch("studio.watchdog_loop.load_team", return_value=_team_fixture())
+@patch("studio.watchdog_loop.tmux_control.capture_pane")
+def test_check_pane_now_uses_fallback_name_for_unknown_pane_index(mock_capture, mock_team):
+    mock_capture.return_value = '❯ Try "help"'
+    state = watchdog_loop.WatchdogState()
+
+    result = watchdog_loop.check_pane_now(9, state=state)
+
+    assert result["name"] == "pane-9"
+    assert state.panes[9]["name"] == "pane-9"
+
+
+@patch("studio.watchdog_loop.load_team", return_value=_team_fixture())
+@patch("studio.watchdog_loop.tmux_control.capture_pane")
+def test_check_pane_now_preserves_existing_context_fields(mock_capture, mock_team):
+    mock_capture.return_value = '❯ Try "help"'
+    state = watchdog_loop.WatchdogState()
+    state.panes[0] = {
+        "name": "쭌", "stuck": False, "last_line": "", "context_pct": 42.5, "context_alert": True,
+    }
+
+    result = watchdog_loop.check_pane_now(0, state=state)
+
+    assert result["context_pct"] == 42.5
+    assert result["context_alert"] is True
+    assert state.panes[0]["context_pct"] == 42.5
+    assert state.panes[0]["context_alert"] is True
