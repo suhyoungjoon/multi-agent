@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 
@@ -22,17 +23,19 @@ def _run_script(repo: Path) -> subprocess.CompletedProcess:
     return subprocess.run(["bash", str(SCRIPT)], cwd=repo, capture_output=True, text=True)
 
 
-def test_emits_notice_when_docs_file_changes(tmp_path):
+def test_emits_block_decision_when_docs_file_changes(tmp_path):
     repo = _init_repo(tmp_path)
     (repo / "docs" / "architecture.md").write_text("updated content\n", encoding="utf-8")
 
     result = _run_script(repo)
 
     assert result.returncode == 0
-    assert "TEAM_PROGRESS_CHANGED" in result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "block"
+    assert "산출물이 바뀌었습니다" in payload["reason"]
 
 
-def test_emits_notice_when_memory_store_file_changes(tmp_path):
+def test_emits_block_decision_when_memory_store_file_changes(tmp_path):
     repo = _init_repo(tmp_path)
     (repo / "memory_store").mkdir()
     (repo / "memory_store" / "store.py").write_text("x = 1\n", encoding="utf-8")
@@ -43,10 +46,11 @@ def test_emits_notice_when_memory_store_file_changes(tmp_path):
     result = _run_script(repo)
 
     assert result.returncode == 0
-    assert "TEAM_PROGRESS_CHANGED" in result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "block"
 
 
-def test_emits_notice_when_todo_py_changes(tmp_path):
+def test_emits_block_decision_when_todo_py_changes(tmp_path):
     repo = _init_repo(tmp_path)
     (repo / "todo.py").write_text("# v1\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -55,7 +59,8 @@ def test_emits_notice_when_todo_py_changes(tmp_path):
 
     result = _run_script(repo)
 
-    assert "TEAM_PROGRESS_CHANGED" in result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "block"
 
 
 def test_silent_when_only_unrelated_file_changes(tmp_path):
@@ -87,11 +92,23 @@ def test_exits_zero_when_not_a_git_repo(tmp_path):
     assert result.stdout == ""
 
 
-def test_emits_notice_when_untracked_file_created_under_docs(tmp_path):
+def test_emits_block_decision_when_untracked_file_created_under_docs(tmp_path):
     repo = _init_repo(tmp_path)
     (repo / "docs" / "newfile.md").write_text("brand new file\n", encoding="utf-8")
 
     result = _run_script(repo)
 
     assert result.returncode == 0
-    assert "TEAM_PROGRESS_CHANGED" in result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "block"
+
+
+def test_reason_mentions_all_six_team_members(tmp_path):
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "architecture.md").write_text("updated\n", encoding="utf-8")
+
+    result = _run_script(repo)
+
+    payload = json.loads(result.stdout)
+    for name in ["쭌", "민준", "지훈", "수아", "서연", "태양"]:
+        assert name in payload["reason"]
