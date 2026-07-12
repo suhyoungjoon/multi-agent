@@ -9,10 +9,12 @@
     .pane-card.stuck { border-color: #d9534f; }
     button { margin-right: 0.5rem; cursor: pointer; }
     #token-input { width: 20rem; }
+    #error-banner { display: none; background: #4a1414; border: 1px solid #d9534f; color: #f5c6cb; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
   </style>
 </head>
 <body>
   <h1>Advanced Agent Studio</h1>
+  <div id="error-banner"></div>
   <p>
     Token: <input id="token-input" type="password" placeholder="X-Studio-Token">
     <button id="save-token">저장</button>
