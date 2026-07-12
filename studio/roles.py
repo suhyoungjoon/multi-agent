@@ -19,4 +19,6 @@ def load_roles(path: Path = DEFAULT_ROLES_PATH) -> dict[int, str]:
         return {}
 
     raw = yaml.safe_load(text) or {}
+    if not isinstance(raw, dict):
+        return {}
     return {int(idx): value for idx, value in raw.items()}

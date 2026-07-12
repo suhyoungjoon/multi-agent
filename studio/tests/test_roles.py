@@ -33,3 +33,21 @@ def test_default_roles_yaml_has_six_entries():
 
     assert set(loaded.keys()) == {0, 1, 2, 3, 4, 5}
     assert "쭌" in loaded[0]
+
+
+def test_load_roles_returns_empty_dict_when_yaml_is_a_list(tmp_path: Path):
+    roles_file = tmp_path / "roles.yaml"
+    roles_file.write_text("- not\n- a\n- mapping\n", encoding="utf-8")
+
+    loaded = roles.load_roles(roles_file)
+
+    assert loaded == {}
+
+
+def test_load_roles_returns_empty_dict_when_yaml_is_a_scalar(tmp_path: Path):
+    roles_file = tmp_path / "roles.yaml"
+    roles_file.write_text("just a string\n", encoding="utf-8")
+
+    loaded = roles.load_roles(roles_file)
+
+    assert loaded == {}
