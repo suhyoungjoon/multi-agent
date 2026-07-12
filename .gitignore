@@ -1,3 +1,7 @@
 .env
 .mcp.json
 memory_store/notes.json
+.venv/
+__pycache__/
+*.pyc
+studio/.env
