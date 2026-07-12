@@ -2,22 +2,37 @@ import time
 
 from studio import tmux_control
 from studio.context_usage import parse_context_usage
+from studio.pane_state import is_clean_idle
 
 COMPACT_WAIT_TIMEOUT_SEC = 90
 COMPACT_POLL_INTERVAL_SEC = 3
 
 
 def _is_idle(screen_text: str) -> bool:
-    lines = screen_text.splitlines()
-    last_line = lines[-1] if lines else ""
-    return last_line.strip().startswith("❯ Try")
+    """Delegates to pane_state.is_clean_idle so compact-wait and stuck-detection
+    share a single definition of "idle" and can't drift apart."""
+    return is_clean_idle(screen_text)
+
+
+def _read_context_pct(idx: int) -> float | None:
+    tmux_control.send_keys(idx, "/context")
+    time.sleep(1.5)
+    tmux_control.send_enter(idx)
+    time.sleep(1.5)
+
+    screen = tmux_control.capture_pane(idx)
+    parsed = parse_context_usage(screen)
+    return parsed[0] if parsed else None
 
 
 def trigger_compact(idx: int) -> dict:
-    """Send /compact, wait for the pane to return to idle, then report /context %.
+    """Send /compact, wait for the pane to return to idle, then report /context %
+    from before and after the compaction.
 
     Manual, user-triggered only — never called from the background tick.
     """
+    before_pct = _read_context_pct(idx)
+
     tmux_control.send_keys(idx, "/compact")
     time.sleep(1)
     tmux_control.send_enter(idx)
@@ -32,13 +47,6 @@ def trigger_compact(idx: int) -> dict:
     else:
         return {"ok": False, "reason": "timeout"}
 
-    tmux_control.send_keys(idx, "/context")
-    time.sleep(1.5)
-    tmux_control.send_enter(idx)
-    time.sleep(1.5)
+    after_pct = _read_context_pct(idx)
 
-    after_screen = tmux_control.capture_pane(idx)
-    parsed = parse_context_usage(after_screen)
-    after_pct = parsed[0] if parsed else None
-
-    return {"ok": True, "before_pct": None, "after_pct": after_pct}
+    return {"ok": True, "before_pct": before_pct, "after_pct": after_pct}
