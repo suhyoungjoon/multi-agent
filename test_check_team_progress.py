@@ -112,3 +112,44 @@ def test_reason_mentions_all_six_team_members(tmp_path):
     payload = json.loads(result.stdout)
     for name in ["쭌", "민준", "지훈", "수아", "서연", "태양"]:
         assert name in payload["reason"]
+
+
+def test_silent_on_second_call_when_no_new_changes(tmp_path):
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "architecture.md").write_text("updated content\n", encoding="utf-8")
+
+    first = _run_script(repo)
+    second = _run_script(repo)
+
+    assert json.loads(first.stdout)["decision"] == "block"
+    assert second.stdout == ""
+
+
+def test_emits_again_when_additional_relevant_change_occurs(tmp_path):
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "architecture.md").write_text("updated content\n", encoding="utf-8")
+
+    first = _run_script(repo)
+    assert json.loads(first.stdout)["decision"] == "block"
+
+    (repo / "docs" / "api-spec.md").write_text("new file\n", encoding="utf-8")
+    second = _run_script(repo)
+
+    assert json.loads(second.stdout)["decision"] == "block"
+
+
+def test_fires_again_after_change_is_committed_then_a_new_change_appears(tmp_path):
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "architecture.md").write_text("updated content\n", encoding="utf-8")
+
+    first = _run_script(repo)
+    assert json.loads(first.stdout)["decision"] == "block"
+
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "commit the change"], cwd=repo, check=True)
+    silent_after_commit = _run_script(repo)
+    assert silent_after_commit.stdout == ""
+
+    (repo / "docs" / "architecture.md").write_text("updated again\n", encoding="utf-8")
+    third = _run_script(repo)
+    assert json.loads(third.stdout)["decision"] == "block"
