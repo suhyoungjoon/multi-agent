@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -19,8 +20,16 @@ def _init_repo(tmp_path: Path) -> Path:
     return repo
 
 
-def _run_script(repo: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(["bash", str(SCRIPT)], cwd=repo, capture_output=True, text=True)
+def _run_script(repo: Path, pane: str | None = None) -> subprocess.CompletedProcess:
+    """`pane` simulates $TMUX_PANE — pass a distinct value per simulated tmux
+    pane so state tracking is independent between them, or None to simulate
+    running outside tmux (no TMUX_PANE set)."""
+    env = os.environ.copy()
+    if pane is not None:
+        env["TMUX_PANE"] = pane
+    else:
+        env.pop("TMUX_PANE", None)
+    return subprocess.run(["bash", str(SCRIPT)], cwd=repo, capture_output=True, text=True, env=env)
 
 
 def test_emits_block_decision_when_docs_file_changes(tmp_path):
@@ -166,25 +175,61 @@ def test_reason_names_the_specific_changed_path(tmp_path):
 
 
 def test_second_persona_still_notified_when_first_persona_already_reported(tmp_path):
-    """Simulates two tmux panes sharing one working tree: 민준 edits docs/architecture.md
-    and the hook fires (reporting it), then — before either change is committed —
-    지훈 edits a different file under docs/. 지훈's Stop event must still fire for
-    their own file, not go silent just because 민준's file was already reported."""
+    """Real concurrent-pane repro: 지훈 saves docs/research.md (his turn is still in
+    progress, no Stop yet) BEFORE 민준's Stop event fires — so when 민준's hook runs,
+    `git status` already shows both files dirty. 민준's Stop (pane A) fires and,
+    with the old shared-state design, would mark 지훈's still-unreported file as
+    "seen" too. 지훈's own Stop (pane B) must still fire for his own file — pane-scoped
+    state (keyed by $TMUX_PANE) is what makes this possible: pane B never reads
+    anything pane A wrote."""
     repo = _init_repo(tmp_path)
 
+    # 지훈's edit lands on disk first, but his turn hasn't Stopped yet.
+    (repo / "docs" / "research.md").write_text("지훈's change\n", encoding="utf-8")
+    # 민준 edits his own file and Stops — both files are dirty at this point.
     (repo / "docs" / "architecture.md").write_text("민준's change\n", encoding="utf-8")
-    minjun_run = _run_script(repo)
+
+    minjun_run = _run_script(repo, pane="%1")
     assert json.loads(minjun_run.stdout)["decision"] == "block"
 
-    (repo / "docs" / "research.md").write_text("지훈's change\n", encoding="utf-8")
-    jihoon_run = _run_script(repo)
+    # 지훈's Stop fires next, on pane B — nothing about research.md has changed
+    # further, but it must still be reported since pane B has never reported it.
+    jihoon_run = _run_script(repo, pane="%2")
 
-    assert jihoon_run.stdout != ""
+    assert jihoon_run.stdout != "", "지훈's own unreported change was silently swallowed"
     payload = json.loads(jihoon_run.stdout)
     assert payload["decision"] == "block"
     assert "docs/research.md" in payload["reason"]
-    # Should not re-announce 민준's already-reported file as if it were new.
-    assert "docs/architecture.md" not in payload["reason"]
+
+
+def test_panes_without_tmux_pane_set_fall_back_to_shared_state(tmp_path):
+    """Outside tmux (no $TMUX_PANE), there's only ever one consumer, so falling
+    back to one shared state file is correct and matches pre-pane-scoping
+    behavior — verifies the fallback doesn't silently disable state tracking."""
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "architecture.md").write_text("updated\n", encoding="utf-8")
+
+    first = _run_script(repo, pane=None)
+    second = _run_script(repo, pane=None)
+
+    assert json.loads(first.stdout)["decision"] == "block"
+    assert second.stdout == ""
+
+
+def test_reason_joins_multiple_changed_paths_with_comma_space(tmp_path):
+    """Regression test for a delimiter bug: BSD paste's -d takes a *rotating*
+    delimiter list, not a literal separator, so `paste -sd ', ' -` silently
+    produces comma-with-no-space or inconsistent joins on macOS. Assert the
+    actual joined format instead of just substring-checking each path."""
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "architecture.md").write_text("change one\n", encoding="utf-8")
+    (repo / "docs" / "research.md").write_text("change two\n", encoding="utf-8")
+    (repo / "docs" / "review.md").write_text("change three\n", encoding="utf-8")
+
+    result = _run_script(repo)
+
+    payload = json.loads(result.stdout)
+    assert "docs/architecture.md, docs/research.md, docs/review.md" in payload["reason"]
 
 
 def test_no_false_reretrigger_when_unrelated_commit_happens_elsewhere(tmp_path):

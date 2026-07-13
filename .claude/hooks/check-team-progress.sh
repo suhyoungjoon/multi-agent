@@ -21,17 +21,25 @@ if [ -z "$MATCHED_PATHS" ]; then
 fi
 
 # State tracking: remember, per matched path, the content hash we last
-# reported for it. This must be per-path (not one combined blob) because
-# all 6 tmux panes share this one working tree — if 민준 edits
-# docs/architecture.md and 지훈 edits docs/research.md before either is
-# committed, a single shared "already reported" flag would let one
-# persona's Stop event silently swallow the other's still-unreported
-# change. Content hash (not HEAD commit) is used per path so that an
-# unrelated commit elsewhere in the repo never invalidates a still-pending
-# path's already-reported status, while genuinely re-editing a path (even
-# across a commit boundary) always produces a new hash and re-fires.
+# reported for it. Content hash (not HEAD commit) is used per path so that
+# an unrelated commit elsewhere in the repo never invalidates a
+# still-pending path's already-reported status, while genuinely re-editing
+# a path (even across a commit boundary) always produces a new hash and
+# re-fires.
+#
+# The state file itself is scoped per tmux pane ($TMUX_PANE), not shared
+# across all 6 panes. A single shared ledger was tried and found broken:
+# all 6 panes poll the SAME git working tree, so if 민준 edits
+# docs/architecture.md and Stops while 지훈's docs/research.md edit is
+# already sitting on disk (still mid-turn, not yet Stopped), 민준's hook
+# run sees both files as "currently matched" and would mark research.md
+# as reported before 지훈's own Stop ever ran — silently swallowing
+# 지훈's contribution. Since each tmux pane gets its own $TMUX_PANE value,
+# giving each pane an independent ledger means one pane's bookkeeping can
+# never suppress another pane's report. Outside tmux there's only one
+# consumer, so the $TMUX_PANE-less fallback name is safe to share.
 GIT_DIR=$(git rev-parse --git-dir)
-STATE_FILE="$GIT_DIR/team-progress-last-state"
+STATE_FILE="$GIT_DIR/team-progress-last-state${TMUX_PANE:+-$TMUX_PANE}"
 touch "$STATE_FILE"
 
 NEW_PATHS=""
@@ -60,7 +68,11 @@ while IFS= read -r path; do
 done <<< "$MATCHED_PATHS"
 mv "$STATE_TMP" "$STATE_FILE"
 
-CHANGED_LIST=$(printf '%s' "$NEW_PATHS" | paste -sd ', ' -)
+# Join with ", " by hand rather than `paste -sd`: BSD paste (macOS default)
+# treats a multi-character -d argument as a *rotating* delimiter list, not
+# a literal separator, producing inconsistent joins like "a,b c" instead
+# of "a, b, c".
+CHANGED_LIST=$(printf '%s' "$NEW_PATHS" | awk 'NF { printf "%s%s", sep, $0; sep=", " }')
 
 REASON="이번 세션에서 다음 산출물이 바뀌었습니다: ${CHANGED_LIST}. 지금까지의 대화 맥락에서 네가 어느 팀원(쭌/민준/지훈/수아/서연/태양)인지 판단한 뒤, ~/workspaces/multi-agent-wiki 디렉토리로 가서 bash scripts/wiki-lock.sh acquire wiki/team/<이름>.md 로 락을 잡고, wiki/team/<이름>.md 파일의 \"## 최근 작업\" 섹션에 이번 세션에서 한 일을 3~5문장으로 요약해 추가(append, 기존 내용 유지)한 뒤, git add 및 git commit을 실행하고, bash scripts/wiki-lock.sh release wiki/team/<이름>.md 로 락을 해제하라."
 python3 -c "import json, sys; print(json.dumps({'decision': 'block', 'reason': sys.argv[1]}, ensure_ascii=False))" "$REASON"
