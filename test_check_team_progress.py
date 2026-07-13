@@ -153,3 +153,54 @@ def test_fires_again_after_change_is_committed_then_a_new_change_appears(tmp_pat
     (repo / "docs" / "architecture.md").write_text("updated again\n", encoding="utf-8")
     third = _run_script(repo)
     assert json.loads(third.stdout)["decision"] == "block"
+
+
+def test_reason_names_the_specific_changed_path(tmp_path):
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "architecture.md").write_text("updated content\n", encoding="utf-8")
+
+    result = _run_script(repo)
+
+    payload = json.loads(result.stdout)
+    assert "docs/architecture.md" in payload["reason"]
+
+
+def test_second_persona_still_notified_when_first_persona_already_reported(tmp_path):
+    """Simulates two tmux panes sharing one working tree: 민준 edits docs/architecture.md
+    and the hook fires (reporting it), then — before either change is committed —
+    지훈 edits a different file under docs/. 지훈's Stop event must still fire for
+    their own file, not go silent just because 민준's file was already reported."""
+    repo = _init_repo(tmp_path)
+
+    (repo / "docs" / "architecture.md").write_text("민준's change\n", encoding="utf-8")
+    minjun_run = _run_script(repo)
+    assert json.loads(minjun_run.stdout)["decision"] == "block"
+
+    (repo / "docs" / "research.md").write_text("지훈's change\n", encoding="utf-8")
+    jihoon_run = _run_script(repo)
+
+    assert jihoon_run.stdout != ""
+    payload = json.loads(jihoon_run.stdout)
+    assert payload["decision"] == "block"
+    assert "docs/research.md" in payload["reason"]
+    # Should not re-announce 민준's already-reported file as if it were new.
+    assert "docs/architecture.md" not in payload["reason"]
+
+
+def test_no_false_reretrigger_when_unrelated_commit_happens_elsewhere(tmp_path):
+    """A commit that only touches an already-reported path must not cause a
+    still-pending, unrelated, already-reported path to be re-announced."""
+    repo = _init_repo(tmp_path)
+
+    (repo / "docs" / "architecture.md").write_text("first change\n", encoding="utf-8")
+    (repo / "docs" / "research.md").write_text("second change\n", encoding="utf-8")
+    first = _run_script(repo)
+    assert json.loads(first.stdout)["decision"] == "block"
+
+    # Commit only architecture.md; research.md remains uncommitted and unchanged.
+    subprocess.run(["git", "add", "docs/architecture.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "commit architecture only"], cwd=repo, check=True)
+
+    second = _run_script(repo)
+
+    assert second.stdout == ""
