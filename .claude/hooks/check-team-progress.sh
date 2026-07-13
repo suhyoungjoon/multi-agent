@@ -14,7 +14,16 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 0
 fi
 
-MATCHED_PATHS=$(git status --porcelain 2>/dev/null | cut -c4- | grep -E '^(docs/|memory_store/|cloud-builder/|todo\.py|test_)' || true)
+# -uall: without it, a wholly-untracked directory collapses to a single
+#   "?? docs/research/" entry instead of listing files inside it
+#   individually — git hash-object then fails on the directory path and
+#   the change is silently dropped. Real impact: docs/research/(지훈),
+#   docs/design/(수아), docs/review/(태양) are untracked in the actual
+#   repo, so every file they create was invisible without this flag.
+# -c core.quotepath=false: without it, non-ASCII (Korean) filenames are
+#   octal-escaped and double-quoted in porcelain output, breaking both
+#   the path regex match and git hash-object.
+MATCHED_PATHS=$(git -c core.quotepath=false status --porcelain -uall 2>/dev/null | cut -c4- | grep -E '^(docs/|memory_store/|cloud-builder/|todo\.py|test_)' || true)
 
 if [ -z "$MATCHED_PATHS" ]; then
   exit 0

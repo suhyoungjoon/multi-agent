@@ -249,3 +249,43 @@ def test_no_false_reretrigger_when_unrelated_commit_happens_elsewhere(tmp_path):
     second = _run_script(repo)
 
     assert second.stdout == ""
+
+
+def test_emits_block_decision_for_new_file_in_wholly_untracked_subdirectory(tmp_path):
+    """Final whole-branch review found a real gap: git status --porcelain
+    (without -uall) collapses a wholly-untracked directory to a single
+    directory entry (e.g. "?? docs/research/"), not the individual file.
+    git hash-object then fails on that directory path and the change is
+    silently dropped. This matters for real usage: docs/research/ (지훈),
+    docs/design/ (수아), and docs/review/ (태양) are all untracked in the
+    actual multi-agent repo, so every file they create would be invisible
+    to the hook without this fix."""
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "research").mkdir()
+    (repo / "docs" / "research" / "topic.md").write_text("research notes\n", encoding="utf-8")
+
+    result = _run_script(repo)
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "block"
+    assert "docs/research/topic.md" in payload["reason"]
+
+
+def test_emits_block_decision_for_korean_filename(tmp_path):
+    """Final whole-branch review found a second real gap: with git's default
+    core.quotepath=true, a non-ASCII filename is octal-escaped and
+    double-quoted in `git status --porcelain` output (e.g.
+    '"docs/research/\\354\\241\\260\\354\\202\\254.md"'), which breaks both
+    the path regex match and git hash-object. Highly relevant for this
+    all-Korean-filename project."""
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "research").mkdir()
+    (repo / "docs" / "research" / "조사.md").write_text("조사 내용\n", encoding="utf-8")
+
+    result = _run_script(repo)
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "block"
+    assert "docs/research/조사.md" in payload["reason"]
