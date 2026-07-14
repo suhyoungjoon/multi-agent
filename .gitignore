@@ -5,3 +5,4 @@ memory_store/notes.json
 __pycache__/
 *.pyc
 studio/.env
+.superpowers/
