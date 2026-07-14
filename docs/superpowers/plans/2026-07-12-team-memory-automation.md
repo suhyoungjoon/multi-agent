@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> ⚠️ **이 계획 문서는 실제 구현과 다릅니다 (2026-07-13 기준).** 라이브 tmux 검증 중 이 문서에 적힌 메커니즘(`TEAM_PROGRESS_CHANGED:` plain stdout, `git diff --name-only HEAD` 게이팅)이 Stop 이벤트에서 실제로 동작하지 않는 것으로 판명되어 완전히 재설계됐습니다. **정확한 최신 동작은 스펙 문서(`docs/superpowers/specs/2026-07-12-team-memory-automation-design.md`)를 참고하세요** — 이 계획 파일은 초기 태스크 분해 기록으로만 남겨둡니다.
+
 **Goal:** Add a `Stop` hook to `multi-agent/.claude/settings.json` that detects (via `git diff`) whether a team member's output changed this response, and if so, instructs Claude to record a summary in that member's `wiki/team/<name>.md` and auto-commit it in the vault repo.
 
 **Architecture:** A standalone, unit-testable bash script (`.claude/hooks/check-team-progress.sh`) does the git-diff gating and emits the instruction text on stdout when relevant paths changed. `.claude/settings.json` wires this script to the `Stop` event via `type: command`. This is a packaging refinement over the spec (which showed the logic as one inline JSON string) — same behavior, but the gating logic becomes independently testable instead of buried in a JSON string.
