@@ -121,3 +121,71 @@ def test_block_still_happens_when_osascript_fails(tmp_path):
     result = _run_hook("rm -rf /tmp/some-dir", tmp_path, extra_path=str(fake_bin))
 
     assert result.returncode == 2
+
+
+# --- Regression tests for final-review findings I1/I2 -----------------------
+
+
+def test_blocks_rm_capital_rf(tmp_path):
+    """I1: 'rm -Rf' (capital R) slipped through the original case-sensitive regex."""
+    result = _run_hook("rm -Rf /tmp/some-dir", tmp_path)
+    assert result.returncode == 2
+
+
+def test_blocks_rm_long_flags(tmp_path):
+    """I1: '--recursive --force' (long-form flags) slipped through the original regex."""
+    result = _run_hook("rm --recursive --force /tmp/some-dir", tmp_path)
+    assert result.returncode == 2
+
+
+def test_blocks_rm_mixed_short_and_long_flags(tmp_path):
+    """I1: mixed short recursive + long force slipped through the original regex."""
+    result = _run_hook("rm -r --force /tmp/some-dir", tmp_path)
+    assert result.returncode == 2
+
+
+def test_allows_rm_force_only_no_recursion(tmp_path):
+    """Force-only single-file delete (no recursion) must still be allowed —
+    the fix for I1 must not overreach into blocking this."""
+    result = _run_hook("rm -f /tmp/some-file.txt", tmp_path)
+    assert result.returncode == 0
+
+
+def test_allows_rm_plain_no_flags(tmp_path):
+    result = _run_hook("rm /tmp/some-file.txt", tmp_path)
+    assert result.returncode == 0
+
+
+def test_notification_passes_command_as_data_not_applescript_source(tmp_path):
+    """I2: $COMMAND was interpolated directly into the AppleScript -e source
+    string, so a command containing a literal '"' could break out of the
+    string and inject arbitrary AppleScript (verified live: a crafted
+    command executed `do shell script "..."` via the notification call).
+    The fix must pass the command as a plain data argument to osascript
+    (e.g. via `on run argv`), never concatenated into -e script source."""
+    fake_bin = tmp_path / "fakebin"
+    fake_bin.mkdir()
+    fake_osascript = fake_bin / "osascript"
+    capture_file = tmp_path / "osascript-calls.log"
+    fake_osascript.write_text(
+        f'#!/bin/sh\nfor a in "$@"; do printf \'%s\\n---ARG---\\n\' "$a"; done >> "{capture_file}"\nexit 0\n',
+        encoding="utf-8",
+    )
+    fake_osascript.chmod(0o755)
+
+    malicious = 'rm -rf /tmp/x" & (do shell script "touch PWNED-marker") & "'
+    result = _run_hook(malicious, tmp_path, extra_path=str(fake_bin))
+
+    assert result.returncode == 2
+    assert capture_file.exists()
+    args = [a for a in capture_file.read_text(encoding="utf-8").split("---ARG---\n") if a]
+
+    script_args = [args[i + 1] for i, a in enumerate(args[:-1]) if a == "-e"]
+    for script in script_args:
+        assert "do shell script" not in script
+        assert malicious not in script
+
+    # The malicious text must still show up somewhere (as a plain data
+    # argument), proving it wasn't silently dropped -- just safely isolated
+    # from the AppleScript source.
+    assert any(malicious in a for a in args)

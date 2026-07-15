@@ -42,16 +42,41 @@ block() {
 
     printf '%s | %s | %s | %s\n' "$timestamp" "$pane" "$reason" "$COMMAND" >> "$LOG_FILE" 2>/dev/null || true
 
-    osascript -e "display notification \"pane ${pane}: ${COMMAND}\" with title \"위험 명령 차단\" sound name \"Basso\"" >/dev/null 2>&1 || true
+    # Pass pane/command as plain `on run argv` data arguments, never
+    # interpolated into the -e script source. A command containing a
+    # literal '"' previously broke out of a double-quoted AppleScript
+    # string here and could execute arbitrary AppleScript (verified: a
+    # crafted command ran `do shell script "..."` via this notification).
+    osascript \
+        -e 'on run argv' \
+        -e 'display notification (item 2 of argv) with title (item 1 of argv) sound name "Basso"' \
+        -e 'end run' \
+        "위험 명령 차단" "pane ${pane}: ${COMMAND}" >/dev/null 2>&1 || true
 
     exit 2
 }
 
 # --- Dangerous pattern checks -------------------------------------------
 
-# rm -rf (any target) -- catches rm -rf, rm -fr, rm -r -f, sudo rm -rf, etc.
-if printf '%s' "$COMMAND" | grep -Eq '\brm\s+(-[a-zA-Z]*\s+)*-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\b|\brm\s+(-[a-zA-Z]*\s+)*-[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*\b'; then
-    block "destructive 'rm -rf'-style recursive force delete is not allowed."
+# rm -rf (recursive + force, in any combination/case/short-or-long-flag
+# form) -- catches rm -rf, rm -fr, rm -Rf, rm -r -f, rm --recursive --force,
+# rm -r --force, sudo rm -rf, etc. Matched as two independent conditions
+# (recursive present AND force present) rather than one combined regex,
+# against a lowercased copy of the command, so case and flag-ordering/style
+# differences can't slip through the way the original single regex did.
+COMMAND_LOWER="$(printf '%s' "$COMMAND" | tr '[:upper:]' '[:lower:]')"
+if printf '%s' "$COMMAND_LOWER" | grep -Eq '\brm\b'; then
+    RM_HAS_RECURSIVE=0
+    RM_HAS_FORCE=0
+    if printf '%s' "$COMMAND_LOWER" | grep -Eq -- '--recursive\b|(^|[^[:alnum:]-])-[a-z]*r[a-z]*([[:space:]]|$)'; then
+        RM_HAS_RECURSIVE=1
+    fi
+    if printf '%s' "$COMMAND_LOWER" | grep -Eq -- '--force\b|(^|[^[:alnum:]-])-[a-z]*f[a-z]*([[:space:]]|$)'; then
+        RM_HAS_FORCE=1
+    fi
+    if [ "$RM_HAS_RECURSIVE" = "1" ] && [ "$RM_HAS_FORCE" = "1" ]; then
+        block "destructive 'rm -rf'-style recursive force delete is not allowed."
+    fi
 fi
 
 # git push --force / -f (including --force-with-lease variants we still want to flag)
