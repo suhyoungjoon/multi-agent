@@ -1,6 +1,12 @@
 #!/bin/bash
 # watchdog.sh — team1(6패널) 자동 감시 + 안전 조치 + macOS 알림
 #
+# 요구사항: bash 4+ (declare -A 연관 배열 사용 — macOS 기본 /bin/bash 3.2에서는
+# "declare: -A: invalid option" 및 이후 배열 인덱스 연산 오류 발생). 저장소로
+# 이동만 됐을 뿐 이 요구사항은 아직 충족되지 않음(2026-07-18 team.yaml 마이그레이션
+# 스코프 밖 — MEMBER_NAMES 배열만 team.yaml 연동으로 교체함). 실행 전 `brew install bash`
+# 후 `/opt/homebrew/bin/bash watchdog.sh`로 실행 필요.
+#
 # 사용법:
 #   ./watchdog.sh [세션명(기본 team1)] [점검주기초(기본 20)]
 #
