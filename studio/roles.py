@@ -2,23 +2,36 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_ROLES_PATH = Path(__file__).resolve().parent / "roles.yaml"
+DEFAULT_TEAM_YAML_PATH = Path(__file__).resolve().parent.parent / "team.yaml"
 
 
-def load_roles(path: Path = DEFAULT_ROLES_PATH) -> dict[int, str]:
-    """Load pane-index -> role-instruction-text mapping from roles.yaml.
+def load_roles(path: Path = DEFAULT_TEAM_YAML_PATH) -> dict[int, str]:
+    """Load pane-index -> role-instruction-text mapping from team.yaml.
 
-    Returns an empty dict if the file is missing, rather than raising —
-    callers (watchdog_loop) treat an empty dict as "role reinject
-    unavailable for this pane" and skip the reinject with a logged
-    warning instead of crashing.
+    Returns an empty dict if the file is missing or malformed, rather
+    than raising — callers (main.py's restart_pane) treat an empty
+    dict as "role reinject unavailable for this pane" and respond 404
+    instead of crashing.
     """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return {}
 
-    raw = yaml.safe_load(text) or {}
-    if not isinstance(raw, dict):
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
         return {}
-    return {int(idx): value for idx, value in raw.items()}
+
+    if not isinstance(data, dict) or not isinstance(data.get("team"), list):
+        return {}
+
+    result: dict[int, str] = {}
+    for member in data["team"]:
+        if not isinstance(member, dict):
+            continue
+        pane = member.get("pane")
+        role = member.get("role")
+        if isinstance(pane, int) and isinstance(role, str):
+            result[pane] = role
+    return result
