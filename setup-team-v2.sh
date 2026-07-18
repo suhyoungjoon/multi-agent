@@ -12,15 +12,42 @@ NC='\033[0m'
 SESSION="team1"
 WORKDIR="/Users/syj/workspaces/multi-agent"
 
-MEMBER_NAMES=("쭌" "민준 아키텍트" "지훈 리서쳐" "수아 UI/UX디자이너" "서연 개발자" "태양 QA·리뷰어")
-MEMBER_MODELS=(
-    "claude-sonnet-4-6"
-    "claude-sonnet-4-6"
-    "claude-sonnet-4-6"
-    "claude-sonnet-4-6"
-    "claude-sonnet-4-6"
-    "claude-sonnet-4-6"
-)
+# Load roster from team.yaml (single source of truth). Falls back to
+# the hardcoded roster below if team.yaml is missing/unreadable so a
+# config problem never blocks starting the team.
+readarray -t MEMBER_NAMES < <(python3 -c "
+import yaml
+try:
+    with open('team.yaml') as f:
+        data = yaml.safe_load(f)
+    for m in sorted(data['team'], key=lambda x: x['pane']):
+        print(m['name'])
+except Exception:
+    pass
+" 2>/dev/null)
+
+readarray -t MEMBER_MODELS < <(python3 -c "
+import yaml
+try:
+    with open('team.yaml') as f:
+        data = yaml.safe_load(f)
+    for m in sorted(data['team'], key=lambda x: x['pane']):
+        print(m['model'])
+except Exception:
+    pass
+" 2>/dev/null)
+
+if [ "${#MEMBER_NAMES[@]}" -eq 0 ]; then
+    MEMBER_NAMES=("쭌" "민준 아키텍트" "지훈 리서쳐" "수아 UI/UX디자이너" "서연 개발자" "태양 QA·리뷰어")
+    MEMBER_MODELS=(
+        "claude-sonnet-4-6"
+        "claude-sonnet-4-6"
+        "claude-sonnet-4-6"
+        "claude-sonnet-4-6"
+        "claude-sonnet-4-6"
+        "claude-sonnet-4-6"
+    )
+fi
 
 # ── 유틸: 파인 화면에 패턴이 나타날 때까지 대기 (못 찾아도 실패시키지 않음) ──
 wait_for_pane() {
