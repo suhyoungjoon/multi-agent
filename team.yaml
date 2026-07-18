@@ -8,6 +8,7 @@ team:
     outputs: []
     hub_for: []
     owns_files: []
+    mcp_config: null
 
   - name: 민준
     pane: 1
@@ -19,6 +20,7 @@ team:
     outputs: [docs/architecture.md, docs/api-spec.md, docs/data-model.md]
     hub_for: [지훈, 서연, 태양]
     owns_files: []
+    mcp_config: .mcp/민준.json
 
   - name: 지훈
     pane: 2
@@ -30,6 +32,7 @@ team:
     outputs: [docs/research/]
     hub_for: []
     owns_files: []
+    mcp_config: null
 
   - name: 수아
     pane: 3
@@ -40,6 +43,7 @@ team:
     outputs: [docs/design/]
     hub_for: []
     owns_files: []
+    mcp_config: .mcp/수아.json
 
   - name: 서연
     pane: 4
@@ -50,6 +54,7 @@ team:
     outputs: []
     hub_for: []
     owns_files: []
+    mcp_config: .mcp/서연.json
 
   - name: 태양
     pane: 5
@@ -61,3 +66,4 @@ team:
     outputs: [docs/review/]
     hub_for: []
     owns_files: []
+    mcp_config: .mcp/태양.json

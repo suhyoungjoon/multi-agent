@@ -164,3 +164,15 @@ def test_default_team_yaml_has_six_members_in_pane_order():
     assert len(team) == 6
     assert [m["name"] for m in team] == ["쭌", "민준", "지훈", "수아", "서연", "태양"]
     assert [m["pane"] for m in team] == [0, 1, 2, 3, 4, 5]
+
+
+def test_default_team_yaml_has_mcp_config_for_four_members():
+    team = team_config.load_team()
+    by_name = {m["name"]: m for m in team}
+
+    assert by_name["민준"]["mcp_config"] == ".mcp/민준.json"
+    assert by_name["수아"]["mcp_config"] == ".mcp/수아.json"
+    assert by_name["서연"]["mcp_config"] == ".mcp/서연.json"
+    assert by_name["태양"]["mcp_config"] == ".mcp/태양.json"
+    assert by_name["쭌"].get("mcp_config") is None
+    assert by_name["지훈"].get("mcp_config") is None
