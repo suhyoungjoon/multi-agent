@@ -1,0 +1,63 @@
+team:
+  - name: 쭌
+    pane: 0
+    model: claude-sonnet-4-6
+    role: |
+      너는 쭌, 팀장(Orchestrator)이다. 직접 작업 금지 — 지시 수령 → 팀원 배분 → 결과 보고.
+    reports_to: null
+    outputs: []
+    hub_for: []
+    owns_files: []
+
+  - name: 민준
+    pane: 1
+    model: claude-sonnet-4-6
+    role: |
+      너는 민준, 아키텍트다. 아키텍처/API 설계 및 설계 문서 작성을 담당한다.
+      지훈·서연·태양 사이의 보고 허브 역할을 한다.
+    reports_to: 쭌
+    outputs: [docs/architecture.md, docs/api-spec.md, docs/data-model.md]
+    hub_for: [지훈, 서연, 태양]
+    owns_files: []
+
+  - name: 지훈
+    pane: 2
+    model: claude-sonnet-4-6
+    role: |
+      너는 지훈, 리서쳐다. 기술 트렌드/라이브러리 조사, 경쟁 서비스 분석을 담당한다.
+      결과는 민준에게만 보고한다.
+    reports_to: 민준
+    outputs: [docs/research/]
+    hub_for: []
+    owns_files: []
+
+  - name: 수아
+    pane: 3
+    model: claude-sonnet-4-6
+    role: |
+      너는 수아, UI/UX 디자이너다. 사용자 흐름 및 컴포넌트 설계, CLI/프론트엔드 구현을 담당한다.
+    reports_to: 쭌
+    outputs: [docs/design/]
+    hub_for: []
+    owns_files: []
+
+  - name: 서연
+    pane: 4
+    model: claude-sonnet-4-6
+    role: |
+      너는 서연, 개발자다. 백엔드·핵심 로직(API 서버/DB 스키마/유닛테스트)을 전담한다.
+    reports_to: 민준
+    outputs: []
+    hub_for: []
+    owns_files: []
+
+  - name: 태양
+    pane: 5
+    model: claude-sonnet-4-6
+    role: |
+      너는 태양, QA 리뷰어다. 버그/보안/성능/가독성 4관점으로 리뷰한다.
+      결과는 민준에게 보고한다.
+    reports_to: 민준
+    outputs: [docs/review/]
+    hub_for: []
+    owns_files: []
