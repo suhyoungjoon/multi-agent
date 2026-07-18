@@ -55,6 +55,29 @@ if [ "${#MEMBER_NAMES[@]}" -eq 0 ]; then
     )
 fi
 
+# GitHub PAT for .mcp/서연.json, .mcp/태양.json (${GITHUB_PAT} reference).
+# Missing .env just means those two panes' github MCP fails to connect --
+# does not block team startup.
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
+MEMBER_MCP_CONFIGS=()
+while IFS= read -r line; do
+    MEMBER_MCP_CONFIGS+=("$line")
+done < <(python3 -c "
+import yaml
+try:
+    with open('team.yaml') as f:
+        data = yaml.safe_load(f)
+    for m in sorted(data['team'], key=lambda x: x['pane']):
+        print(m.get('mcp_config') or '')
+except Exception:
+    pass
+" 2>/dev/null)
+
 # ── 유틸: 파인 화면에 패턴이 나타날 때까지 대기 (못 찾아도 실패시키지 않음) ──
 wait_for_pane() {
     local pane="$1" pattern="$2" timeout="${3:-15}" waited=0
@@ -138,8 +161,13 @@ for i in 0 1 2 3 4 5; do
     pane="$SESSION:0.$i"
     tmux send-keys -t "$pane" C-c 2>/dev/null
     sleep 0.1
-    tmux send-keys -t "$pane" \
-        "cd '$WORKDIR' && unset CLAUDECODE && $CLAUDE_BIN --model ${MEMBER_MODELS[$i]} --dangerously-skip-permissions" Enter
+    if [ -n "${MEMBER_MCP_CONFIGS[$i]:-}" ]; then
+        tmux send-keys -t "$pane" \
+            "cd '$WORKDIR' && unset CLAUDECODE && $CLAUDE_BIN --model ${MEMBER_MODELS[$i]} --mcp-config '${MEMBER_MCP_CONFIGS[$i]}' --strict-mcp-config --dangerously-skip-permissions" Enter
+    else
+        tmux send-keys -t "$pane" \
+            "cd '$WORKDIR' && unset CLAUDECODE && $CLAUDE_BIN --model ${MEMBER_MODELS[$i]} --dangerously-skip-permissions" Enter
+    fi
 done
 
 echo "  모든 파인에 실행 명령 전송 완료. 다이얼로그 처리 대기 중..."
