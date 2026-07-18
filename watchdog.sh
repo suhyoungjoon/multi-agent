@@ -54,7 +54,10 @@ fi
 # team_config.py / setup-team-v2.sh for the same pattern). Falls back to
 # the hardcoded roster if team.yaml is missing or unreadable so the
 # watchdog never refuses to start over a config problem.
-readarray -t MEMBER_NAMES < <(cd "$(dirname "${BASH_SOURCE[0]}")" && python3 -c "
+MEMBER_NAMES=()
+while IFS= read -r line; do
+    MEMBER_NAMES+=("$line")
+done < <(cd "$(dirname "${BASH_SOURCE[0]}")" && python3 -c "
 import yaml
 try:
     with open('team.yaml') as f:

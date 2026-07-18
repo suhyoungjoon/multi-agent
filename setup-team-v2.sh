@@ -15,7 +15,10 @@ WORKDIR="/Users/syj/workspaces/multi-agent"
 # Load roster from team.yaml (single source of truth). Falls back to
 # the hardcoded roster below if team.yaml is missing/unreadable so a
 # config problem never blocks starting the team.
-readarray -t MEMBER_NAMES < <(python3 -c "
+MEMBER_NAMES=()
+while IFS= read -r line; do
+    MEMBER_NAMES+=("$line")
+done < <(python3 -c "
 import yaml
 try:
     with open('team.yaml') as f:
@@ -26,7 +29,10 @@ except Exception:
     pass
 " 2>/dev/null)
 
-readarray -t MEMBER_MODELS < <(python3 -c "
+MEMBER_MODELS=()
+while IFS= read -r line; do
+    MEMBER_MODELS+=("$line")
+done < <(python3 -c "
 import yaml
 try:
     with open('team.yaml') as f:
